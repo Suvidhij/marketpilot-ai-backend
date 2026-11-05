@@ -1,64 +1,73 @@
 # MarketPilot AI — Backend
 
-Phase 1 FastAPI + Python + Pydantic foundation. This service currently exposes only health and generated API documentation. Database, accounts, business data, OpenAI, and n8n integrations are deliberately deferred to the milestones in the supplied brief.
+A working marketing workspace API built with Python, FastAPI, Pydantic, SQLAlchemy, SQLite, and Alembic. Includes accounts, session revocation, client-owned records, campaign analytics, reports, six OpenAI agent entry points, and approval-controlled automation.
 
 ## A. What are we building?
-An independent API service that the Next.js UI can call.
+The private service behind the separate Next.js UI repository. This implementation covers the code for milestones 1–8; live OpenAI, n8n integrations, external publishing, and public deployment require your configured services. See `docs/milestones.md` for precise boundaries.
 
 ## B. Why do we need it?
-The backend will eventually validate requests, enforce record ownership, and keep database and OpenAI credentials away from the browser.
+The backend stores business data, checks ownership, calculates metrics, keeps keys out of the browser, and enforces approval before handing consequential actions to an executor.
 
-## C. How it works
-FastAPI routes a health request to `app/api/health.py`. Pydantic defines its response. Configuration reads environment variables using `pydantic-settings`. CORS allows only explicitly configured frontend origins. CORS is a browser control, not authentication; this health endpoint is intentionally public.
+## C. How the projects communicate
+Browser → Next.js `/api/backend/*` proxy → FastAPI `/api/v1/*` → SQLAlchemy → SQLite. The UI and backend repositories should be sibling directories. Full explanation: `docs/architecture.md`.
 
-## D–E. Run it
-Prerequisites: Python 3.12 and Git. Open a terminal in this repository:
+## D–E. Run locally
+Use Python 3.12 and Node.js 24 LTS. From the backend repository:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 cp .env.example .env
+python -m alembic upgrade head
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Windows PowerShell: activate with `.venv\Scripts\Activate.ps1` and copy with `Copy-Item .env.example .env`.
+Windows PowerShell: activate with `.venv\Scripts\Activate.ps1`; copy with `Copy-Item .env.example .env`. In a second terminal follow the UI README, then open http://localhost:3000/signup. Create your own account; there are no seeded credentials or fake client records.
 
-Open http://localhost:8000/docs for interactive API documentation. The UI runs separately at http://localhost:3000.
+API docs: http://localhost:8000/docs. Liveness: `/api/v1/health`. Database readiness: `/api/v1/ready`.
 
-## F. Verify
-In another terminal with the virtual environment activated:
+## F. Test
+With the virtual environment activated:
 
 ```bash
 python -m pytest -q
-curl http://localhost:8000/api/v1/health
+python -m alembic check
 ```
 
-Expected response:
+After building the sibling UI, run the complete HTTP smoke flow against a disposable database:
 
-```json
-{"status":"ok","service":"MarketPilot AI API","version":"0.1.0"}
+```bash
+python scripts/smoke.py --ui-dir ../marketpilot-ai-ui
 ```
 
-Tests check the response contract, trusted and untrusted origins, rejected preflight methods, and missing routes. This health check proves the process responds; it does not claim database readiness.
+This exercises the real production UI server, proxy, cookies, signup, owned records, metrics, reports, approval protocol, and logout. It creates synthetic receipts only in its temporary database; it never calls an external publisher. It does not replace browser interaction testing.
 
 ## G. Important files
 
-- `app/main.py`: application factory, API router, CORS configuration.
-- `app/core/config.py`: typed environment configuration.
-- `app/api/health.py`: health route and response schema.
-- `tests/test_health.py`: health and CORS tests.
-- `.env.example`: safe local configuration template.
-- `requirements.txt`: runtime dependency versions.
-- `requirements-dev.txt`: additional test dependencies.
-
-Future modules will live under `models`, `schemas`, `services`, `agents`, and `integrations` as working features are implemented. We do not create nonfunctional agents or unprotected business endpoints in Phase 1.
+- `app/main.py`: application, CORS, host checks, request limits, safe validation errors, logging.
+- `app/core/`: environment settings, database sessions, UTC storage, password/session security.
+- `app/models/entities.py`: persisted entities and foreign keys.
+- `app/schemas/entities.py`: accepted and returned data shapes.
+- `app/api/`: account, record, agent, and workflow endpoints.
+- `app/services/`: ownership, campaign calculations, reports, idempotency, approval handoff.
+- `app/agents/marketing.py`: six agent instructions, read-only tool calling, structured output.
+- `migrations/`: versioned database changes. Application startup does not create tables implicitly.
+- `automation/workflows/`: inactive, credential-free n8n exports.
+- `tests/`: authorization, sessions, metrics, migrations, AI contract, and automation tests.
+- `compose.yaml`: local UI/API deployment with optional n8n.
 
 ## H. Troubleshooting
 
-- **Module not found:** activate `.venv`, install requirements, and run commands from this repository root.
-- **CORS error:** set `CORS_ORIGINS` as a JSON array, for example `["http://localhost:3000"]`. Restart the backend after configuration changes.
-- **Port in use:** stop the other service or choose another port; update the UI API address to match.
-- **Configuration validation error:** use the formatting shown in `.env.example`.
+- **No such table / readiness 503:** run `python -m alembic upgrade head` from this repository.
+- **401:** sign in; sessions expire and logout revokes them.
+- **403:** use the same UI address as `APP_ORIGIN` and `CORS_ORIGINS`. Direct API mutations need `X-MarketPilot-CSRF: 1`; workflow endpoints need `X-Workflow-Key` instead.
+- **AI 503:** set `AI_ENABLED=true`, a backend-only `OPENAI_API_KEY`, and an available `OPENAI_MODEL`; restart the API.
+- **AI 502:** check provider access, model entitlement, quota, outbound network policy, and backend logs. The response intentionally omits provider secrets.
+- **409 workflow:** an event ID has conflicting data, a record has a claimed handoff, or an approval changed. Reuse IDs only for identical retries.
+- **429:** wait for the stated retry period; do not disable the check.
+- **SQLite locked:** avoid multiple API replicas; keep calls bounded and move to PostgreSQL for scale.
 
-The local server is a development service. Before production, complete database migrations, secure authentication and authorization, HTTPS, deployment configuration, rate limits, and operational monitoring. No OpenAI key is required yet.
+Docker, HTTPS, backups, and rollout instructions: `docs/deployment.md`. n8n setup and action protocol: `automation/README.md`. API overview: `docs/api-documentation.md`.
+
+Recommended managed hosting: [Vercel + Render](docs/vercel-render.md). Verification details and limits: [docs/verification.md](docs/verification.md).

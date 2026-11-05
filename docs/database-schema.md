@@ -1,16 +1,21 @@
-# Proposed database schema — Phase 2
+# Database schema
 
-This is a design document, not an implemented database. SQLAlchemy models and Alembic migrations will be introduced and tested in the next milestone.
+Implemented in `app/models/entities.py`; versioned by Alembic. User → Client → Lead, Campaign, Content, and Report. All records have primary keys; ownership and parent lookups have indexes; client deletion cascades through foreign keys. SQLite foreign-key enforcement is enabled on every application connection.
 
-| Entity | Fields |
+| Table | Purpose and key constraints |
 | --- | --- |
-| User | id, name, email (unique, normalized), hashed_password, is_active, created_at, updated_at |
-| Client | id, user_id (FK User, indexed), company_name, website, industry, description, created_at, updated_at |
-| Lead | id, client_id (FK Client, indexed), name, email, source, status, lead_score, created_at |
-| Campaign | id, client_id (FK Client, indexed), campaign_name, platform, objective, budget, status, created_at |
-| Content | id, client_id (FK Client, indexed), title, platform, content_type, body, status, scheduled_at, created_at |
-| Report | id, client_id (FK Client, indexed), report_name, report_type, report_data, created_at |
+| users | Normalized unique email, name, Argon2 password hash, active flag, UTC timestamps |
+| clients | Owner foreign key, company name, optional HTTP(S) website, industry, description |
+| leads | Client foreign key, name/email/source, constrained status, 0–100 score |
+| campaigns | Client foreign key, campaign/platform/objective, Decimal budget/spend/revenue, nonnegative performance counters |
+| content | Client foreign key, title/platform/type/body, status, optional timezone-aware planned publication time |
+| reports | Client foreign key, report name/type, persisted structured JSON snapshot |
+| sessions | Hashed random token, owner foreign key, indexed expiry; revocable |
+| auth_attempts | Hashed rate-limit subject and timestamp; no raw passwords |
+| workflow_tokens | One hashed revocable workflow credential per user |
+| workflow_events | Unique user/event ID, payload hash, original result for retries |
+| approval_actions | Owner/client, resource reference, immutable payload, review/execution status, external receipt |
 
-One User owns many Clients. Each Client has many Leads, Campaigns, Content items, and Reports. Authorization must join child records through Client.user_id to the authenticated user. Use Decimal for monetary budgets, UTC timestamps, validated status values and score ranges, database constraints, and enabled SQLite foreign keys. Deletion behavior will be explicit and tested before client deletion ships.
+Approval action resource references are polymorphic (content or campaign) and checked in the service rather than as a foreign key. Editing/deleting referenced records cancels unclaimed actions; claimed actions block edits/deletion. Deleting the parent client cascades action history after execution has completed.
 
-Use portable SQLAlchemy types and Alembic migrations to keep a future PostgreSQL migration practical. Store no plaintext passwords and no OpenAI keys in these records.
+UTCDateTime restores UTC timezone metadata lost by SQLite. Monetary amounts use Numeric(14,2), not binary floating-point storage. Analytics ratios are rounded to four decimal places and return null on zero denominators. PostgreSQL migration requires a driver, data migration, and deployment checks; portable types and foreign keys are already used, but that migration has not been performed.

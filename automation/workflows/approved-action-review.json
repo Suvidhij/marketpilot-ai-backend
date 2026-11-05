@@ -1,0 +1,67 @@
+{
+  "name": "MarketPilot \u00b7 Review approved action handoffs",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "Manual test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/webhooks/actions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "review",
+      "name": "Read approved actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Safe handoff template\nThis workflow only reads approved actions. Add a Split Out node if needed, claim each action at POST /webhooks/actions/{id}/claim, then execute through your configured provider with the returned idempotency key. Complete only after confirmed success. Never connect unapproved actions directly to a publisher.",
+        "height": 280,
+        "width": 470
+      },
+      "id": "note",
+      "name": "Configure external executor",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        650,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Manual test": {
+      "main": [
+        [
+          {
+            "node": "Read approved actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {}
+}

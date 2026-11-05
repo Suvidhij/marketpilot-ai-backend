@@ -1,0 +1,29 @@
+services:
+  backend:
+    environment:
+      ENVIRONMENT: production
+      COOKIE_SECURE: "true"
+      CORS_ORIGINS: '["https://${APP_DOMAIN:?Set APP_DOMAIN in .env}"]'
+      ALLOWED_HOSTS: '["backend","localhost","127.0.0.1","${API_DOMAIN:?Set API_DOMAIN in .env}"]'
+  ui:
+    environment:
+      APP_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - ui
+      - backend
+volumes:
+  caddy-data:
+  caddy-config:
