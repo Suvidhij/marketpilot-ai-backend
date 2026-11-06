@@ -11,6 +11,20 @@ The backend stores business data, checks ownership, calculates metrics, keeps ke
 ## C. How the projects communicate
 Browser → Next.js `/api/backend/*` proxy → FastAPI `/api/v1/*` → SQLAlchemy → SQLite. The UI and backend repositories should be sibling directories. Full explanation: `docs/architecture.md`.
 
+## Windows quick start
+
+Open PowerShell in this repository and run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Start-Backend.ps1
+```
+
+This process-only policy setting handles Windows script restrictions without changing the saved execution policy. The script works from any current directory, preserves existing environment files, and installs dependencies when needed. First-time setup needs internet access. It creates the Python 3.12 virtual environment and applies existing Alembic migrations before starting FastAPI on port 8000. Leave the window open and press **Ctrl+C** to stop.
+
+To prepare dependencies without starting the server, add `-SetupOnly`. To repair dependency installation, add `-ReinstallDependencies`. These switches go after the script filename. If port 8000 is busy, stop the existing server first; the script does not silently switch ports. Existing configuration is retained, so keep the local UI address set to `http://localhost:3000` in both projects. Back up a populated database before applying future schema changes.
+
+The scripts use Windows PowerShell 5.1-compatible syntax. Windows CI parses them with both Windows PowerShell and PowerShell 7; this Linux workspace cannot run the Windows server commands.
+
 ## D–E. Run locally
 Use Python 3.12 and Node.js 24 LTS. From the backend repository:
 
